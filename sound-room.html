@@ -182,6 +182,7 @@
       align-items: center;
       gap: 10px;
       flex-wrap: wrap;
+      min-height: 32px;
     }
 
     .np-chip {
@@ -198,10 +199,6 @@
     }
 
     @media (max-width: 768px) {
-      .sound-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 400px) {
       .sound-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
@@ -224,7 +221,6 @@
       <p>Mix ambient sounds to create your perfect sleep environment.</p>
     </div>
 
-    <!-- Now playing -->
     <div class="card" style="margin-bottom: 20px;">
       <p class="card-title">Now playing</p>
       <div class="now-playing" id="now-playing">
@@ -232,13 +228,14 @@
       </div>
     </div>
 
-    <!-- Master volume + timer -->
     <div class="grid-2" style="margin-bottom: 20px;">
       <div class="card">
         <p class="card-title">Master volume</p>
         <div class="master-row">
           <label>Volume</label>
-          <input type="range" class="vol-slider" id="master-vol" min="0" max="1" step="0.01" value="0.8" oninput="setMasterVol(this.value)" style="background: var(--border); border: none; padding: 0;"/>
+          <input type="range" class="vol-slider" id="master-vol" min="0" max="1" step="0.01" value="0.8"
+            oninput="setMasterVol(this.value)"
+            style="background: var(--border); border: none; padding: 0;"/>
         </div>
         <div style="display:flex; gap:10px; margin-top:12px;">
           <button class="btn btn-primary" style="flex:1; font-size:0.85rem;" onclick="stopAll()">Stop all</button>
@@ -251,21 +248,18 @@
         <div class="timer-display" id="timer-display">—</div>
         <div class="timer-label" id="timer-label">Choose how long to play</div>
         <div class="timer-row">
-          <button class="timer-btn" onclick="setTimer(15)">15 min</button>
-          <button class="timer-btn" onclick="setTimer(30)">30 min</button>
-          <button class="timer-btn" onclick="setTimer(45)">45 min</button>
-          <button class="timer-btn" onclick="setTimer(60)">60 min</button>
+          <button class="timer-btn" onclick="setTimer(15, this)">15 min</button>
+          <button class="timer-btn" onclick="setTimer(30, this)">30 min</button>
+          <button class="timer-btn" onclick="setTimer(45, this)">45 min</button>
+          <button class="timer-btn" onclick="setTimer(60, this)">60 min</button>
           <button class="timer-btn" onclick="cancelTimer()">Cancel</button>
         </div>
       </div>
     </div>
 
-    <!-- Sound cards -->
     <div class="card">
       <p class="card-title">Choose your sounds</p>
-      <div class="sound-grid" id="sound-grid">
-        <!-- JS renders these -->
-      </div>
+      <div class="sound-grid" id="sound-grid"></div>
     </div>
   </main>
 
@@ -293,15 +287,15 @@
   <script src="script.js"></script>
   <script>
     const SOUNDS = [
-      { id: 'rain',       name: 'Heavy rain',     emoji: '🌧️', freq: 100, type: 'noise' },
-      { id: 'drizzle',    name: 'Light drizzle',  emoji: '🌦️', freq: 200, type: 'noise' },
-      { id: 'thunder',    name: 'Distant thunder', emoji: '⛈️', freq: 60,  type: 'noise' },
-      { id: 'wind',       name: 'Wind',            emoji: '🍃', freq: 400, type: 'noise' },
-      { id: 'waves',      name: 'Ocean waves',     emoji: '🌊', freq: 80,  type: 'noise' },
-      { id: 'fire',       name: 'Fireplace',       emoji: '🔥', freq: 300, type: 'noise' },
-      { id: 'whitenoise', name: 'White noise',     emoji: '〰️', freq: 0,   type: 'white' },
-      { id: 'forest',     name: 'Forest',          emoji: '🌲', freq: 500, type: 'noise' },
-      { id: 'fan',        name: 'Ceiling fan',     emoji: '💨', freq: 120, type: 'noise' },
+      { id: 'rain',       name: 'Heavy rain',      emoji: '🌧️', freq: 800,  filterType: 'lowpass' },
+      { id: 'drizzle',    name: 'Light drizzle',   emoji: '🌦️', freq: 2000, filterType: 'lowpass' },
+      { id: 'thunder',    name: 'Distant thunder', emoji: '⛈️', freq: 150,  filterType: 'lowpass' },
+      { id: 'wind',       name: 'Wind',            emoji: '🍃', freq: 600,  filterType: 'bandpass' },
+      { id: 'waves',      name: 'Ocean waves',     emoji: '🌊', freq: 300,  filterType: 'lowpass' },
+      { id: 'fire',       name: 'Fireplace',       emoji: '🔥', freq: 1200, filterType: 'lowpass' },
+      { id: 'whitenoise', name: 'White noise',     emoji: '〰️', freq: 0,    filterType: 'none' },
+      { id: 'forest',     name: 'Forest',          emoji: '🌲', freq: 2500, filterType: 'highpass' },
+      { id: 'fan',        name: 'Ceiling fan',     emoji: '💨', freq: 400,  filterType: 'bandpass' },
     ];
 
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -313,10 +307,11 @@
     let timerSecs = 0;
 
     function createNoise(sound, vol) {
-      const bufferSize = 4096;
+      const bufferSize = ctx.sampleRate * 2;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
@@ -324,11 +319,11 @@
       const gainNode = ctx.createGain();
       gainNode.gain.value = vol;
 
-      if (sound.type === 'noise' && sound.freq > 0) {
+      if (sound.freq > 0) {
         const filter = ctx.createBiquadFilter();
-        filter.type = sound.id === 'wind' ? 'bandpass' : 'lowpass';
+        filter.type = sound.filterType || 'lowpass';
         filter.frequency.value = sound.freq;
-        filter.Q.value = sound.id === 'waves' ? 0.5 : 1;
+        filter.Q.value = sound.filterType === 'bandpass' ? 0.8 : 1.2;
         source.connect(filter);
         filter.connect(gainNode);
       } else {
@@ -398,11 +393,11 @@
       }
     }
 
-    function setTimer(mins) {
+    function setTimer(mins, btn) {
       if (timerInterval) clearInterval(timerInterval);
       timerSecs = mins * 60;
       document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      btn.classList.add('active');
       updateTimerDisplay();
       timerInterval = setInterval(() => {
         timerSecs--;
