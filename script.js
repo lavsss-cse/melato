@@ -2,7 +2,7 @@
 
 function check3AMMode() {
   const hour = new Date().getHours();
-  const is3AM = true;
+  const is3AM = hour >= 0 && hour < 4;
 
   if (is3AM && !document.getElementById('am3-overlay')) {
     inject3AMOverlay();
