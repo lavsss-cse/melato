@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Melato — Thought Dump</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .dump-area {
+      width: 100%;
+      min-height: 180px;
+      resize: vertical;
+      font-size: 1rem;
+      line-height: 1.8;
+      padding: 18px;
+      border-radius: var(--radius);
+    }
+
+    .char-count {
+      text-align: right;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    /* Lock away overlay */
+    .lock-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(10, 8, 20, 0.85);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .lock-overlay.show { display: flex; }
+
+    .lock-box {
+      background: rgba(42, 38, 64, 0.75);
+      border: 1px solid rgba(179,157,219,0.25);
+      border-radius: 24px;
+      padding: 40px 48px;
+      text-align: center;
+      max-width: 380px;
+      width: 90%;
+    }
+
+    .lock-icon {
+      width: 72px; height: 72px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lock-icon svg {
+      width: 72px; height: 72px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: all 0.5s;
+    }
+
+    .lock-box h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    .lock-box p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    @keyframes float-away {
+      0%   { opacity: 1; transform: translateY(0) scale(1); }
+      100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+    }
+
+    @keyframes lock-shake {
+      0%, 100% { transform: rotate(0deg); }
+      20%       { transform: rotate(-8deg); }
+      40%       { transform: rotate(8deg); }
+      60%       { transform: rotate(-5deg); }
+      80%       { transform: rotate(5deg); }
+    }
+
+    @keyframes seal-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(179,157,219,0.3); }
+      50%       { box-shadow: 0 0 0 16px rgba(179,157,219,0); }
+    }
+
+    .floating-text {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      pointer-events: none;
+      z-index: 201;
+      white-space: nowrap;
+      max-width: 280px;
+      text-align: center;
+      white-space: normal;
+    }
+
+    /* Entries */
+    .entries-list { display: flex; flex-direction: column; gap: 12px; }
+
+    .entry-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      position: relative;
+      transition: background 0.2s;
+    }
+
+    .entry-card:hover { background: rgba(255,255,255,0.05); }
+
+    .entry-card.locked {
+      filter: blur(4px);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .entry-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .entry-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .entry-badge {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-weight: 600;
+    }
+
+    .entry-badge.locked-badge {
+      background: rgba(232,165,152,0.15);
+      color: var(--accent-2);
+    }
+
+    .entry-badge.open-badge {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .entry-text {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .entry-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .entry-btn {
+      font-size: 0.75rem;
+      padding: 5px 12px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 0.2s;
+    }
+
+    .entry-btn:hover { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
+    .entry-btn.danger:hover { background: rgba(232,165,152,0.1); color: var(--accent-2); border-color: var(--accent-2); }
+
+    .empty-state { text-align: center; color: var(--text-muted); padding: 32px; font-size: 0.9rem; }
+
+    .tip-box {
+      background: var(--accent-glow);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 18px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .tip-box strong { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="navbar-logo">mela<span>to</span></a>
+    <ul class="navbar-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="sleep-tracker.html">Sleep</a></li>
+      <li><a href="thought-dump.html" class="active">Thoughts</a></li>
+      <li><a href="sound-room.html">Sounds</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+    <div class="page-header">
+      <h1>Thought dump</h1>
+      <p>Get it out of your head. Then let it go.</p>
+    </div>
+
+    <div class="tip-box">
+      <strong>How it works:</strong> Write whatever is keeping you awake. Every worry, every thought, every thing on your mind. Then choose to save it or lock it away — sealed, blurred, and out of your night.
+    </div>
+
+    <!-- Write area -->
+    <div class="card" style="margin-bottom: 20px;">
+      <p class="card-title">What's on your mind?</p>
+      <textarea
+        class="dump-area"
+        id="thought-input"
+        placeholder="Start typing... don't hold back. No one is reading this."
+        oninput="updateCount()"
+      ></textarea>
+      <div class="char-count"><span id="char-count">0</span> characters</div>
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="saveThought(false)" style="flex:1;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/></svg>
+          Save
+        </button>
+        <button class="btn" style="flex:1; background: rgba(232,165,152,0.15); color: var(--accent-2); border: 1px solid rgba(232,165,152,0.2);" onclick="saveThought(true)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Lock it away
+        </button>
+      </div>
+    </div>
+
+    <!-- Past entries -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <p class="card-title" style="margin-bottom:0;">Past entries</p>
+        <button class="entry-btn" onclick="toggleLocked()" id="toggle-locked-btn">Show locked</button>
+      </div>
+      <div class="entries-list" id="entries-list">
+        <div class="empty-state">Nothing here yet. Write your first thought above.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Lock overlay -->
+  <div class="lock-overlay" id="lock-overlay">
+    <div class="floating-text" id="floating-words"></div>
+    <div class="lock-box">
+      <div class="lock-icon" id="lock-icon-wrap">
+        <svg id="lock-svg" viewBox="0 0 24 24">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <h2 id="lock-title">Locking your thoughts...</h2>
+      <p id="lock-msg">Your thoughts are being sealed away. They can't bother you tonight.</p>
+      <button class="btn btn-primary" id="lock-done-btn" style="display:none; width:100%;" onclick="closeLockOverlay()">Done — goodnight 🌙</button>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a href="index.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        Home
+      </a>
+      <a href="sleep-tracker.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+        Sleep
+      </a>
+      <a href="thought-dump.html" class="bottom-nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        Thoughts
+      </a>
+      <a href="sound-room.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        Sounds
+      </a>
+    </div>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    let showLocked = false;
+
+    function updateCount() {
+      const val = document.getElementById('thought-input').value;
+      document.getElementById('char-count').textContent = val.length;
+    }
+
+    function saveThought(lock) {
+      const text = document.getElementById('thought-input').value.trim();
+      if (!text) return alert('Write something first.');
+      const entry = {
+        id: Date.now(),
+        text,
+        locked: lock,
+        date: new Date().toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+      };
+      const entries = JSON.parse(localStorage.getItem('melato_thoughts') || '[]');
+      entries.unshift(entry);
+      localStorage.setItem('melato_thoughts', JSON.stringify(entries));
+      document.getElementById('thought-input').value = '';
+      document.getElementById('char-count').textContent = '0';
+      if (lock) showLockAnimation(text);
+      else renderEntries();
+    }
+
+    function showLockAnimation(text) {
+      const overlay = document.getElementById('lock-overlay');
+      const floatEl = document.getElementById('floating-words');
+      const title = document.getElementById('lock-title');
+      const msg = document.getElementById('lock-msg');
+      const doneBtn = document.getElementById('lock-done-btn');
+      const lockSvg = document.getElementById('lock-svg');
+
+      overlay.classList.add('show');
+      doneBtn.style.display = 'none';
+
+      // Show snippet of text floating away
+      const snippet = text.slice(0, 60) + (text.length > 60 ? '...' : '');
+      floatEl.textContent = '"' + snippet + '"';
+      floatEl.style.animation = 'none';
+      floatEl.style.opacity = '1';
+      floatEl.style.transform = 'translate(-50%, -50%)';
+
+      setTimeout(() => {
+        floatEl.style.transition = 'all 1.2s ease-out';
+        floatEl.style.opacity = '0';
+        floatEl.style.transform = 'translate(-50%, -120%)';
+      }, 600);
+
+      setTimeout(() => {
+        lockSvg.style.animation = 'lock-shake 0.5s ease';
+        title.textContent = 'Locked away ✓';
+        msg.textContent = "Those thoughts can't reach you now. Rest easy.";
+      }, 1800);
+
+      setTimeout(() => {
+        doneBtn.style.display = 'block';
+        renderEntries();
+      }, 2400);
+    }
+
+    function closeLockOverlay() {
+      document.getElementById('lock-overlay').classList.remove('show');
+      document.getElementById('lock-svg').style.animation = '';
+    }
+
+    function toggleLocked() {
+      showLocked = !showLocked;
+      document.getElementById('toggle-locked-btn').textContent = showLocked ? 'Hide locked' : 'Show locked';
+      renderEntries();
+    }
+
+    function deleteEntry(id) {
+      let entries = JSON.parse(localStorage.getItem('melato_thoughts') || '[]');
+      entries = entries.filter(e => e.id !== id);
+      localStorage.setItem('melato_thoughts', JSON.stringify(entries));
+      renderEntries();
+    }
+
+    function unlockEntry(id) {
+      let entries = JSON.parse(localStorage.getItem('melato_thoughts') || '[]');
+      entries = entries.map(e => e.id === id ? { ...e, locked: false } : e);
+      localStorage.setItem('melato_thoughts', JSON.stringify(entries));
+      renderEntries();
+    }
+
+    function renderEntries() {
+      const entries = JSON.parse(localStorage.getItem('melato_thoughts') || '[]');
+      const el = document.getElementById('entries-list');
+      if (!entries.length) {
+        el.innerHTML = '<div class="empty-state">Nothing here yet. Write your first thought above.</div>';
+        return;
+      }
+      el.innerHTML = entries.map(e => `
+        <div class="entry-card ${e.locked && !showLocked ? 'locked' : ''}">
+          <div class="entry-meta">
+            <span class="entry-date">${e.date}</span>
+            <span class="entry-badge ${e.locked ? 'locked-badge' : 'open-badge'}">${e.locked ? '🔒 Locked' : 'Open'}</span>
+          </div>
+          <div class="entry-text">${e.locked && !showLocked ? '••••••••••••••••••••••••' : escapeHtml(e.text)}</div>
+          <div class="entry-actions">
+            ${e.locked ? `<button class="entry-btn" onclick="unlockEntry(${e.id})">Unlock</button>` : ''}
+            <button class="entry-btn danger" onclick="deleteEntry(${e.id})">Delete</button>
+          </div>
+        </div>`).join('');
+    }
+
+    function escapeHtml(t) {
+      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    renderEntries();
+  </script>
+</body>
+</html>

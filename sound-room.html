@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Melato — Sound Room</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .sound-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .sound-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .sound-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--accent-glow);
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+
+    .sound-card:hover::before { opacity: 1; }
+
+    .sound-card.playing {
+      border-color: rgba(179,157,219,0.5);
+      background: var(--bg-card-hover);
+    }
+
+    .sound-card.playing::before { opacity: 1; }
+
+    .sound-emoji {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    .sound-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .sound-vol {
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    .vol-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      outline: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .vol-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    .vol-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
+
+    .playing-indicator {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      margin-bottom: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .sound-card.playing .playing-indicator { display: flex; }
+
+    .bar {
+      width: 3px;
+      border-radius: 2px;
+      background: var(--accent);
+      animation: bounce 0.8s ease-in-out infinite;
+    }
+
+    .bar:nth-child(1) { height: 8px;  animation-delay: 0s; }
+    .bar:nth-child(2) { height: 14px; animation-delay: 0.15s; }
+    .bar:nth-child(3) { height: 10px; animation-delay: 0.3s; }
+    .bar:nth-child(4) { height: 16px; animation-delay: 0.1s; }
+    .bar:nth-child(5) { height: 8px;  animation-delay: 0.25s; }
+
+    @keyframes bounce {
+      0%, 100% { transform: scaleY(0.5); opacity: 0.6; }
+      50%       { transform: scaleY(1);   opacity: 1; }
+    }
+
+    .master-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .master-row label {
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0;
+      min-width: 80px;
+    }
+
+    .timer-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .timer-btn {
+      padding: 8px 18px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .timer-btn:hover { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
+    .timer-btn.active { background: var(--accent-glow); color: var(--accent); border-color: var(--accent); }
+
+    .timer-display {
+      text-align: center;
+      padding: 16px;
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -1px;
+    }
+
+    .timer-label {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: -8px;
+      margin-bottom: 8px;
+    }
+
+    .now-playing {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .np-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .sound-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 400px) {
+      .sound-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="navbar-logo">mela<span>to</span></a>
+    <ul class="navbar-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="sleep-tracker.html">Sleep</a></li>
+      <li><a href="thought-dump.html">Thoughts</a></li>
+      <li><a href="sound-room.html" class="active">Sounds</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+    <div class="page-header">
+      <h1>Sound room</h1>
+      <p>Mix ambient sounds to create your perfect sleep environment.</p>
+    </div>
+
+    <!-- Now playing -->
+    <div class="card" style="margin-bottom: 20px;">
+      <p class="card-title">Now playing</p>
+      <div class="now-playing" id="now-playing">
+        <span style="color:var(--text-muted); font-size:0.9rem;">No sounds playing — pick one below</span>
+      </div>
+    </div>
+
+    <!-- Master volume + timer -->
+    <div class="grid-2" style="margin-bottom: 20px;">
+      <div class="card">
+        <p class="card-title">Master volume</p>
+        <div class="master-row">
+          <label>Volume</label>
+          <input type="range" class="vol-slider" id="master-vol" min="0" max="1" step="0.01" value="0.8" oninput="setMasterVol(this.value)" style="background: var(--border); border: none; padding: 0;"/>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:12px;">
+          <button class="btn btn-primary" style="flex:1; font-size:0.85rem;" onclick="stopAll()">Stop all</button>
+          <button class="btn btn-ghost" style="flex:1; font-size:0.85rem;" onclick="playAll()">Play all</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="card-title">Sleep timer</p>
+        <div class="timer-display" id="timer-display">—</div>
+        <div class="timer-label" id="timer-label">Choose how long to play</div>
+        <div class="timer-row">
+          <button class="timer-btn" onclick="setTimer(15)">15 min</button>
+          <button class="timer-btn" onclick="setTimer(30)">30 min</button>
+          <button class="timer-btn" onclick="setTimer(45)">45 min</button>
+          <button class="timer-btn" onclick="setTimer(60)">60 min</button>
+          <button class="timer-btn" onclick="cancelTimer()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sound cards -->
+    <div class="card">
+      <p class="card-title">Choose your sounds</p>
+      <div class="sound-grid" id="sound-grid">
+        <!-- JS renders these -->
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a href="index.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        Home
+      </a>
+      <a href="sleep-tracker.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+        Sleep
+      </a>
+      <a href="thought-dump.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        Thoughts
+      </a>
+      <a href="sound-room.html" class="bottom-nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        Sounds
+      </a>
+    </div>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    const SOUNDS = [
+      { id: 'rain',       name: 'Heavy rain',     emoji: '🌧️', freq: 100, type: 'noise' },
+      { id: 'drizzle',    name: 'Light drizzle',  emoji: '🌦️', freq: 200, type: 'noise' },
+      { id: 'thunder',    name: 'Distant thunder', emoji: '⛈️', freq: 60,  type: 'noise' },
+      { id: 'wind',       name: 'Wind',            emoji: '🍃', freq: 400, type: 'noise' },
+      { id: 'waves',      name: 'Ocean waves',     emoji: '🌊', freq: 80,  type: 'noise' },
+      { id: 'fire',       name: 'Fireplace',       emoji: '🔥', freq: 300, type: 'noise' },
+      { id: 'whitenoise', name: 'White noise',     emoji: '〰️', freq: 0,   type: 'white' },
+      { id: 'forest',     name: 'Forest',          emoji: '🌲', freq: 500, type: 'noise' },
+      { id: 'fan',        name: 'Ceiling fan',     emoji: '💨', freq: 120, type: 'noise' },
+    ];
+
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const nodes = {};
+    let masterGain = ctx.createGain();
+    masterGain.gain.value = 0.8;
+    masterGain.connect(ctx.destination);
+    let timerInterval = null;
+    let timerSecs = 0;
+
+    function createNoise(sound, vol) {
+      const bufferSize = 4096;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = vol;
+
+      if (sound.type === 'noise' && sound.freq > 0) {
+        const filter = ctx.createBiquadFilter();
+        filter.type = sound.id === 'wind' ? 'bandpass' : 'lowpass';
+        filter.frequency.value = sound.freq;
+        filter.Q.value = sound.id === 'waves' ? 0.5 : 1;
+        source.connect(filter);
+        filter.connect(gainNode);
+      } else {
+        source.connect(gainNode);
+      }
+
+      gainNode.connect(masterGain);
+      source.start();
+      return { source, gainNode };
+    }
+
+    function toggleSound(id) {
+      if (ctx.state === 'suspended') ctx.resume();
+      if (nodes[id]) {
+        nodes[id].source.stop();
+        nodes[id].gainNode.disconnect();
+        delete nodes[id];
+        document.getElementById('card-' + id).classList.remove('playing');
+      } else {
+        const sound = SOUNDS.find(s => s.id === id);
+        const vol = parseFloat(document.getElementById('vol-' + id).value);
+        nodes[id] = createNoise(sound, vol);
+        document.getElementById('card-' + id).classList.add('playing');
+      }
+      updateNowPlaying();
+    }
+
+    function setVol(id, val) {
+      if (nodes[id]) nodes[id].gainNode.gain.value = parseFloat(val);
+    }
+
+    function setMasterVol(val) {
+      masterGain.gain.value = parseFloat(val);
+    }
+
+    function stopAll() {
+      Object.keys(nodes).forEach(id => {
+        nodes[id].source.stop();
+        nodes[id].gainNode.disconnect();
+        delete nodes[id];
+        document.getElementById('card-' + id).classList.remove('playing');
+      });
+      updateNowPlaying();
+    }
+
+    function playAll() {
+      if (ctx.state === 'suspended') ctx.resume();
+      SOUNDS.forEach(s => {
+        if (!nodes[s.id]) {
+          const vol = parseFloat(document.getElementById('vol-' + s.id).value);
+          nodes[s.id] = createNoise(s, vol * 0.3);
+          document.getElementById('card-' + s.id).classList.add('playing');
+        }
+      });
+      updateNowPlaying();
+    }
+
+    function updateNowPlaying() {
+      const playing = SOUNDS.filter(s => nodes[s.id]);
+      const el = document.getElementById('now-playing');
+      if (!playing.length) {
+        el.innerHTML = '<span style="color:var(--text-muted); font-size:0.9rem;">No sounds playing — pick one below</span>';
+      } else {
+        el.innerHTML = playing.map(s =>
+          `<span class="np-chip">${s.emoji} ${s.name}</span>`
+        ).join('');
+      }
+    }
+
+    function setTimer(mins) {
+      if (timerInterval) clearInterval(timerInterval);
+      timerSecs = mins * 60;
+      document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        timerSecs--;
+        updateTimerDisplay();
+        if (timerSecs <= 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          fadeSoundsOut();
+        }
+      }, 1000);
+    }
+
+    function cancelTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = null;
+      timerSecs = 0;
+      document.getElementById('timer-display').textContent = '—';
+      document.getElementById('timer-label').textContent = 'Choose how long to play';
+      document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    function updateTimerDisplay() {
+      const m = Math.floor(timerSecs / 60);
+      const s = timerSecs % 60;
+      document.getElementById('timer-display').textContent =
+        String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+      document.getElementById('timer-label').textContent = 'Sounds will fade when timer ends';
+    }
+
+    function fadeSoundsOut() {
+      const fadeTime = 5;
+      Object.keys(nodes).forEach(id => {
+        nodes[id].gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + fadeTime);
+      });
+      setTimeout(stopAll, fadeTime * 1000 + 200);
+    }
+
+    // Render sound cards
+    const grid = document.getElementById('sound-grid');
+    grid.innerHTML = SOUNDS.map(s => `
+      <div class="sound-card" id="card-${s.id}" onclick="toggleSound('${s.id}')">
+        <div class="playing-indicator">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div>
+        </div>
+        <span class="sound-emoji">${s.emoji}</span>
+        <div class="sound-name">${s.name}</div>
+        <div class="sound-vol" onclick="event.stopPropagation()">
+          <input type="range" class="vol-slider" id="vol-${s.id}"
+            min="0" max="1" step="0.01" value="0.5"
+            oninput="setVol('${s.id}', this.value)"/>
+        </div>
+      </div>`).join('');
+  </script>
+</body>
+</html>

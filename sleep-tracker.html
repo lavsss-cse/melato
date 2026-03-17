@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Melato — Sleep Tracker</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    .log-form { display: flex; flex-direction: column; gap: 0; }
+    .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    .quality-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .quality-btn {
+      flex: 1; min-width: 60px;
+      padding: 10px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+    .quality-btn:hover { border-color: var(--accent); color: var(--text); }
+    .quality-btn.selected { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+
+    .chart-wrap { position: relative; height: 200px; }
+
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .checklist li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      user-select: none;
+    }
+    .checklist li:hover { background: var(--accent-glow); }
+    .checklist li.done { color: var(--text); }
+    .checklist li.done .check-box { background: var(--accent); border-color: var(--accent); }
+    .checklist li.done .check-box::after { opacity: 1; }
+
+    .check-box {
+      width: 20px; height: 20px;
+      min-width: 20px;
+      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      transition: all 0.2s;
+      position: relative;
+    }
+    .check-box::after {
+      content: '';
+      position: absolute;
+      left: 5px; top: 2px;
+      width: 6px; height: 10px;
+      border: 2px solid #1e1b2e;
+      border-top: none; border-left: none;
+      transform: rotate(45deg);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .logs-list { display: flex; flex-direction: column; gap: 10px; }
+    .log-entry {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.03);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      font-size: 0.88rem;
+    }
+    .log-date { color: var(--text-muted); font-size: 0.78rem; }
+    .log-hours { font-weight: 700; color: var(--accent); font-size: 1rem; }
+    .log-quality { font-size: 0.75rem; padding: 3px 10px; border-radius: 100px; background: var(--accent-glow); color: var(--accent); }
+
+    .sleep-stat { text-align: center; }
+    .sleep-stat .val { font-size: 2rem; font-weight: 700; color: var(--accent); }
+    .sleep-stat .lbl { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .empty-state { text-align: center; color: var(--text-muted); padding: 24px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="navbar-logo">mela<span>to</span></a>
+    <ul class="navbar-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="sleep-tracker.html" class="active">Sleep</a></li>
+      <li><a href="thought-dump.html">Thoughts</a></li>
+      <li><a href="sound-room.html">Sounds</a></li>
+    </ul>
+  </nav>
+
+  <main class="page">
+    <div class="page-header">
+      <h1>Sleep tracker</h1>
+      <p>Log your sleep and build better patterns over time.</p>
+    </div>
+
+    <div class="grid-2" style="margin-bottom: 20px;">
+      <!-- Log Form -->
+      <div class="card">
+        <p class="card-title">Log tonight's sleep</p>
+        <div class="log-form">
+          <div class="time-row form-group">
+            <div>
+              <label>Bedtime</label>
+              <input type="time" id="bedtime" value="22:00"/>
+            </div>
+            <div>
+              <label>Wake time</label>
+              <input type="time" id="waketime" value="06:00"/>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Sleep quality</label>
+            <div class="quality-row">
+              <button class="quality-btn" data-q="Awful">😫 Awful</button>
+              <button class="quality-btn" data-q="Poor">😔 Poor</button>
+              <button class="quality-btn" data-q="Okay">😐 Okay</button>
+              <button class="quality-btn" data-q="Good">😊 Good</button>
+              <button class="quality-btn" data-q="Great">😄 Great</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes (optional)</label>
+            <textarea id="sleep-notes" rows="2" placeholder="Any dreams? Woke up at night?"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="logSleep()" style="width:100%;">Save sleep log</button>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div class="card">
+          <p class="card-title">This week</p>
+          <div class="grid-3" style="gap:12px;">
+            <div class="sleep-stat">
+              <div class="val" id="avg-hours">—</div>
+              <div class="lbl">Avg hours</div>
+            </div>
+            <div class="sleep-stat">
+              <div class="val" id="total-logs">0</div>
+              <div class="lbl">Days logged</div>
+            </div>
+            <div class="sleep-stat">
+              <div class="val" id="best-night">—</div>
+              <div class="lbl">Best night</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <p class="card-title">Sleep hours — last 7 days</p>
+          <div class="chart-wrap">
+            <canvas id="sleepChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sleep hygiene checklist -->
+    <div class="card" style="margin-bottom: 20px;">
+      <p class="card-title">Nightly sleep hygiene checklist</p>
+      <ul class="checklist" id="checklist">
+        <li onclick="toggleCheck(this)" data-key="c1"><div class="check-box"></div> No screens 30 minutes before bed</li>
+        <li onclick="toggleCheck(this)" data-key="c2"><div class="check-box"></div> Room is dark and cool</li>
+        <li onclick="toggleCheck(this)" data-key="c3"><div class="check-box"></div> No caffeine after 2 PM</li>
+        <li onclick="toggleCheck(this)" data-key="c4"><div class="check-box"></div> Did some light stretching</li>
+        <li onclick="toggleCheck(this)" data-key="c5"><div class="check-box"></div> Avoided heavy meals late at night</li>
+        <li onclick="toggleCheck(this)" data-key="c6"><div class="check-box"></div> Consistent bedtime tonight</li>
+        <li onclick="toggleCheck(this)" data-key="c7"><div class="check-box"></div> Took a few deep breaths before lying down</li>
+      </ul>
+    </div>
+
+    <!-- Past logs -->
+    <div class="card">
+      <p class="card-title">Recent logs</p>
+      <div class="logs-list" id="logs-list">
+        <div class="empty-state">No logs yet. Start tracking your sleep above.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <a href="index.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+        Home
+      </a>
+      <a href="sleep-tracker.html" class="bottom-nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 6v6l4 2"/></svg>
+        Sleep
+      </a>
+      <a href="thought-dump.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        Thoughts
+      </a>
+      <a href="sound-room.html" class="bottom-nav-item">
+        <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        Sounds
+      </a>
+    </div>
+  </nav>
+
+  <script src="script.js"></script>
+  <script>
+    let selectedQuality = '';
+    let chart;
+
+    document.querySelectorAll('.quality-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedQuality = btn.dataset.q;
+      });
+    });
+
+    function calcHours(bed, wake) {
+      const [bh, bm] = bed.split(':').map(Number);
+      const [wh, wm] = wake.split(':').map(Number);
+      let mins = (wh * 60 + wm) - (bh * 60 + bm);
+      if (mins < 0) mins += 24 * 60;
+      return +(mins / 60).toFixed(1);
+    }
+
+    function logSleep() {
+      const bed = document.getElementById('bedtime').value;
+      const wake = document.getElementById('waketime').value;
+      const notes = document.getElementById('sleep-notes').value;
+      if (!bed || !wake) return alert('Please set bedtime and wake time.');
+      const hours = calcHours(bed, wake);
+      const entry = {
+        date: new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short' }),
+        bed, wake, hours,
+        quality: selectedQuality || 'Not rated',
+        notes
+      };
+      const logs = JSON.parse(localStorage.getItem('melato_sleep') || '[]');
+      logs.unshift(entry);
+      localStorage.setItem('melato_sleep', JSON.stringify(logs));
+      document.getElementById('sleep-notes').value = '';
+      selectedQuality = '';
+      document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('selected'));
+      renderLogs();
+      renderChart();
+      renderStats();
+    }
+
+    function renderLogs() {
+      const logs = JSON.parse(localStorage.getItem('melato_sleep') || '[]');
+      const el = document.getElementById('logs-list');
+      if (!logs.length) {
+        el.innerHTML = '<div class="empty-state">No logs yet. Start tracking your sleep above.</div>';
+        return;
+      }
+      el.innerHTML = logs.slice(0, 7).map(l => `
+        <div class="log-entry">
+          <div>
+            <div style="font-weight:600;color:var(--text)">${l.bed} → ${l.wake}</div>
+            <div class="log-date">${l.date}${l.notes ? ' · ' + l.notes.slice(0,40) : ''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="log-quality">${l.quality}</span>
+            <span class="log-hours">${l.hours}h</span>
+          </div>
+        </div>`).join('');
+    }
+
+    function renderStats() {
+      const logs = JSON.parse(localStorage.getItem('melato_sleep') || '[]');
+      const recent = logs.slice(0, 7);
+      document.getElementById('total-logs').textContent = recent.length;
+      if (!recent.length) return;
+      const avg = (recent.reduce((a, l) => a + l.hours, 0) / recent.length).toFixed(1);
+      const best = Math.max(...recent.map(l => l.hours));
+      document.getElementById('avg-hours').textContent = avg + 'h';
+      document.getElementById('best-night').textContent = best + 'h';
+    }
+
+    function renderChart() {
+      const logs = JSON.parse(localStorage.getItem('melato_sleep') || '[]');
+      const recent = logs.slice(0, 7).reverse();
+      const labels = recent.map(l => l.date);
+      const data = recent.map(l => l.hours);
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('sleepChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            backgroundColor: 'rgba(179,157,219,0.25)',
+            borderColor: 'rgba(179,157,219,0.8)',
+            borderWidth: 1.5,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              min: 0, max: 12,
+              ticks: { color: '#9e9aba', font: { size: 11 }, stepSize: 3 },
+              grid: { color: 'rgba(179,157,219,0.08)' },
+              border: { display: false }
+            },
+            x: {
+              ticks: { color: '#9e9aba', font: { size: 11 } },
+              grid: { display: false },
+              border: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    function toggleCheck(el) {
+      el.classList.toggle('done');
+      const key = el.dataset.key;
+      const checks = JSON.parse(localStorage.getItem('melato_checks') || '{}');
+      checks[key] = el.classList.contains('done');
+      localStorage.setItem('melato_checks', JSON.stringify(checks));
+    }
+
+    function loadChecks() {
+      const checks = JSON.parse(localStorage.getItem('melato_checks') || '{}');
+      document.querySelectorAll('.checklist li').forEach(li => {
+        if (checks[li.dataset.key]) li.classList.add('done');
+      });
+    }
+
+    loadChecks();
+    renderLogs();
+    renderStats();
+    renderChart();
+  </script>
+</body>
+</html>
